@@ -22,11 +22,15 @@ public struct AniInfo
 
 public class BaseAnimationController : MonoBehaviour
 {
-    private bool _isinitalized = false;
+    private bool _isInitialized = false;
 
-    private Animator _animator; // Unity Animator
-    private List<AniInfo> _animationInfos; // 애니메이션 정보를 담은 리스트
+    private Animator _animator;
+
+    private Dictionary<string, AniInfo> _animationInfosByName;
+    private Dictionary<int, AniInfo> _animationInfosByHash;
+
     private AniInfo _currentAniInfo;
+    private AniInfo _defaultAniInfo;
 
     public AniInfo CurrentAniInfo => _currentAniInfo;
 
@@ -42,23 +46,29 @@ public class BaseAnimationController : MonoBehaviour
 
     private void OnDisable()
     {
-        _animationInfos?.Clear();
-        _isinitalized = false;
+        ClearAnimationData();
     }
 
     // 애니메이션 정보를 초기화하여 리스트에 저장
     private void InitializeAnimationInfos()
     {
-        if (_isinitalized) return;
+        if (_isInitialized) return;
+
         if (_animator == null)
         {
-            Debug.LogError("초기화 되지 않았니다.");
-            _isinitalized = false;
+            Debug.LogError($"[{gameObject.name}] Animator not found. Cannot initialize animations.");
             return;
         }
 
-        _animationInfos = new List<AniInfo>();
         RuntimeAnimatorController rac = _animator.runtimeAnimatorController;
+        if (rac == null)
+        {
+            Debug.LogError($"[{gameObject.name}] RuntimeAnimatorController is null.");
+            return;
+        }
+
+        _animationInfosByName = new Dictionary<string, AniInfo>();
+        _animationInfosByHash = new Dictionary<int, AniInfo>();
 
         foreach (AnimationClip clip in rac.animationClips)
         {
@@ -67,26 +77,50 @@ public class BaseAnimationController : MonoBehaviour
             float clipLength = clip.length;
 
             AniInfo animationInfo = new AniInfo(clipName, clipHash, clipLength);
-            _animationInfos.Add(animationInfo);
+
+            if (!_animationInfosByName.ContainsKey(clipName))
+            {
+                _animationInfosByName.Add(clipName, animationInfo);
+                _animationInfosByHash.Add(clipHash, animationInfo);
+            }
+            else
+            {
+                Debug.LogWarning($"[{gameObject.name}] Duplicate animation name: {clipName}");
+            }
         }
 
-        _isinitalized = true;
-        Debug.Log("모든 애니메이션 정보가 성공적으로 저장되었습니다.");
+        if (_animationInfosByName.Count > 0)
+        {
+            foreach (var info in _animationInfosByName.Values)
+            {
+                _defaultAniInfo = info;
+                break;
+            }
+        }
+
+        _isInitialized = true;
+        Debug.Log($"[{gameObject.name}] Successfully initialized {_animationInfosByName.Count} animations.");
+    }
+
+    private void ClearAnimationData()
+    {
+        _animationInfosByName?.Clear();
+        _animationInfosByHash?.Clear();
+        _isInitialized = false;
     }
 
     // 애니메이션 이름으로 AnimationInfo를 검색하여 반환
     public AniInfo? GetAnimationInfoByName(string name)
     {
         InitializeAnimationInfos();
-        if (!_isinitalized) return null;
+        if (!_isInitialized) return null;
 
-        foreach (AniInfo info in _animationInfos)
+        if (_animationInfosByName.TryGetValue(name, out AniInfo info))
         {
-            if (info.Name == name)
-                return info;
+            return info;
         }
 
-        Debug.LogWarning($"'{name}' 애니메이션 정보를 찾을 수 없습니다.");
+        Debug.LogWarning($"[{gameObject.name}] Animation '{name}' not found.");
         return null;
     }
 
@@ -94,15 +128,14 @@ public class BaseAnimationController : MonoBehaviour
     public AniInfo? GetAnimationInfoByHash(int hash)
     {
         InitializeAnimationInfos();
-        if (!_isinitalized) return null;
+        if (!_isInitialized) return null;
 
-        foreach (AniInfo info in _animationInfos)
+        if (_animationInfosByHash.TryGetValue(hash, out AniInfo info))
         {
-            if (info.Hash == hash)
-                return info;
+            return info;
         }
 
-        Debug.LogWarning($"해시 '{hash}' 값에 해당하는 애니메이션 정보를 찾을 수 없습니다.");
+        Debug.LogWarning($"[{gameObject.name}] Animation hash '{hash}' not found.");
         return null;
     }
 
@@ -110,28 +143,42 @@ public class BaseAnimationController : MonoBehaviour
     public void Play(int animationHash)
     {
         InitializeAnimationInfos();
-        if (!_isinitalized) return;
+        if (!_isInitialized) return;
 
-        var aniInfo = GetAnimationInfoByHash(animationHash).GetValueOrDefault();
+        AniInfo aniInfo = GetAnimationInfoByHash(animationHash) ?? _defaultAniInfo;
+
         if (aniInfo.Hash == 0)
         {
-            if (_animationInfos.Count == 0) return;
-            aniInfo = _animationInfos[0];
+            Debug.LogWarning($"[{gameObject.name}] Cannot play animation. Invalid hash: {animationHash}");
+            return;
         }
+
         _currentAniInfo = aniInfo;
         _animator?.Play(_currentAniInfo.Hash);
     }
+
+    public void Play(string animationName)
+    {
+        AniInfo? info = GetAnimationInfoByName(animationName);
+        if (info.HasValue)
+        {
+            Play(info.Value.Hash);
+        }
+    }
+
     public void CrossFade(int animationHash, float normalizedTransitionDuration = 0.0f)
     {
         InitializeAnimationInfos();
-        if (!_isinitalized) return;
+        if (!_isInitialized) return;
 
-        var aniInfo = GetAnimationInfoByHash(animationHash).GetValueOrDefault();
+        AniInfo aniInfo = GetAnimationInfoByHash(animationHash) ?? _defaultAniInfo;
+
         if (aniInfo.Hash == 0)
         {
-            if (_animationInfos.Count == 0) return;
-            aniInfo = _animationInfos[0];
+            Debug.LogWarning($"[{gameObject.name}] Cannot crossfade animation. Invalid hash: {animationHash}");
+            return;
         }
+
         _currentAniInfo = aniInfo;
         _animator?.CrossFade(_currentAniInfo.Hash, normalizedTransitionDuration);
     }
