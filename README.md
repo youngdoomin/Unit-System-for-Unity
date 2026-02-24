@@ -55,3 +55,14 @@ Health에 DamageablePart를 연결하면 서로 연동됩니다.
 코드는 BaseFSM의 원하는 State에서 BaseAnimationController을 Play 또는 CrossFade를 하면 됩니다.
 
 전체 코드는 Animation 폴더에서 확인 가능합니다
+
+### 폴더 구조
+```
+Folder Structure
+Unit-System-for-Unity/
+├── Animation/          # Animation controller system
+├── CommonState/        # Shared FSM state examples
+├── EnemyModule/        # Enemy-specific unit modules
+├── Fsm/                # Base FSM and state classes
+└── StatusEffect/       # Status effect system
+```
