@@ -84,6 +84,201 @@ Unit-System-for-Unity/
 
 ---
 
+## Class Diagram
+```mermaid
+classDiagram
+    %% ============================================
+    %% INTERFACES
+    %% ============================================
+    class IBaseState {
+        <<interface>>
+        +Initialized()
+        +Disabled()
+        +IsActionabled() bool
+        +Fsm_ActionState(fsm, step, state)
+    }
+    
+    class IUnitStat {
+        <<interface>>
+        +GetUnitMaxHP() float
+        +GetUnitCurrentHP() float
+        +GetUnitName() string
+    }
+    
+    %% ============================================
+    %% CORE FSM ENGINE
+    %% ============================================
+    class Fsm {
+        -State _currentState
+        -float _enterTime
+        +float EnterTime
+        +Start(startState)
+        +OnUpdate()
+        +TransitionTo(state)
+    }
+    
+    class FsmStep {
+        <<enumeration>>
+        Enter
+        Update
+        Exit
+    }
+    
+    %% ============================================
+    %% BASE CLASSES
+    %% ============================================
+    class BaseFsm {
+        <<abstract>>
+        -Fsm _fsm
+        -List~BaseState~ _activeStates
+        -Health _health
+        -BaseAnimationController _animatorCtrl
+        +AddState(state)
+        +RemoveState(state)
+        +GetActionableStates()
+        +TransitionToState(type)
+        #InitFsm()*
+        #Fsm_IdleState()*
+        #OnHitFeedback()*
+        #InitializeStateConfig()*
+    }
+    
+    class BaseState {
+        <<abstract>>
+        -float _coolTime
+        -float _currentCoolTime
+        +Action~BaseState~ StateEnabled
+        +Action~BaseState~ StateDisabled
+        +Func~FsmData~ CopyFsmData
+        +IsActionabled() bool*
+        +Fsm_ActionState(fsm, step, state)
+        #Fsm_Step_Enter()*
+        #Fsm_Step_Update()*
+        #Fsm_Step_Exit()*
+    }
+    
+    %% ============================================
+    %% CONCRETE IMPLEMENTATIONS
+    %% ============================================
+    class BossFsm {
+        -BossPhaseControl _phaseControl
+        -float _transStateDelay
+        #Fsm_IdleState()
+        -BossPhaseState(fsm)
+    }
+    
+    class BooFsm {
+        -FlyStateConfig _flyConfig
+        #Fsm_IdleState()
+        #InitializeStateConfig()
+    }
+    
+    class FlyState {
+        -StateValue _stateValue
+        -Vector3 _direction
+        +InitializedStateValue(config)
+        +Movement()
+        #Fsm_Step_Enter()
+        #Fsm_Step_Update()
+    }
+    
+    %% ============================================
+    %% SUPPORTING SYSTEMS
+    %% ============================================
+    class Health {
+        -float _currentHealth
+        -float _maxHealth
+        -DamageablePart[] _damageParts
+        +Action onHit
+        +Action onDeath
+        +Action onRecovery
+        +Damage(damage) bool
+        +IsDead() bool
+        +Spawn()
+        +StartHealthRecovery(coolTime, count)
+    }
+    
+    class DamageablePart {
+        -Health _health
+        -float _damageMultiplier
+        -Animator _partAnim
+        +Action onHit
+        +Init(health)
+        +SendDamage(damage)
+        +SetInvincible(invincible)
+    }
+    
+    class BossPhaseControl {
+        -BossFsm _controlBossFsm
+        -Health _health
+        -PhaseInfoData[] _phases
+        -PhaseInfoData _currentPhase
+        +TriggerRandomState() IBaseState
+        -UpdatePhase()
+    }
+    
+    class BaseAnimationController {
+        -Animator _animator
+        -Dictionary~string,AniInfo~ _animationInfosByName
+        +Play(name)
+        +CrossFade(name, duration)
+    }
+    
+    %% ============================================
+    %% DATA STRUCTURES
+    %% ============================================
+    class FsmData {
+        <<struct>>
+        +Fsm _fsm
+        +BaseFsm _baseFsm
+        +PlayerController _targetPlayer
+    }
+    
+    class AniInfo {
+        <<struct>>
+        +string Name
+        +int Hash
+        +float Length
+    }
+    
+    class StateValue {
+        <<struct>>
+        +float speedValue
+        +float accelerationValue
+    }
+    
+    class FlyStateConfig {
+        <<ScriptableObject>>
+        +float speed
+        +float acceleration
+        +Generate() StateValue
+    }
+    
+    %% ============================================
+    %% RELATIONSHIPS
+    %% ============================================
+    IBaseState <|.. BaseState
+    IUnitStat <|.. BaseFsm
+    BaseFsm <|-- BossFsm
+    BaseFsm <|-- BooFsm
+    BaseState <|-- FlyState
+    
+    BaseFsm *-- Fsm
+    BaseFsm o-- BaseState
+    BaseFsm --> Health
+    BaseFsm --> BaseAnimationController
+    Health *-- DamageablePart
+    BossFsm o-- BossPhaseControl
+    BooFsm --> FlyStateConfig
+    BossPhaseControl --> BossFsm
+    BossPhaseControl --> Health
+    BaseAnimationController --> AniInfo
+    FlyState --> StateValue
+    DamageablePart --> Health
+```
+
+---
+
 ## License
 
 This project is licensed under the [MIT License](LICENSE).
